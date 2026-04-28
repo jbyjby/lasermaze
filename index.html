@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>빛의 반사 레이저 미로 탈출 - 5단계 마스터 모드</title>
+    <title>레이저 미로 탈출 - 마스터 에디션</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700&display=swap');
@@ -12,13 +12,11 @@
             font-family: 'Noto Sans KR', sans-serif;
             background-color: #020617;
             color: #f8fafc;
-            touch-action: none; /* 태블릿 스크롤 방지 */
+            touch-action: none; 
             overflow: hidden;
         }
 
-        .title-font {
-            font-family: 'Black Han Sans', sans-serif;
-        }
+        .title-font { font-family: 'Black Han Sans', sans-serif; }
 
         .glass {
             background: rgba(30, 41, 59, 0.7);
@@ -27,137 +25,173 @@
         }
 
         #gameCanvas {
-            box-shadow: 0 0 50px rgba(56, 189, 248, 0.2);
+            box-shadow: 0 0 50px rgba(56, 189, 248, 0.15);
             cursor: crosshair;
+            background-color: #020617;
         }
 
-        .inventory-slot {
-            width: 70px;
-            height: 70px;
-            border: 2px dashed rgba(56, 189, 248, 0.3);
+        /* 스테이지 로드맵 UI */
+        .roadmap-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .roadmap-step {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 12px;
-            transition: all 0.2s;
-            cursor: grab;
-            background: rgba(15, 23, 42, 0.5);
-            position: relative;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid rgba(56, 189, 248, 0.3);
+            transition: all 0.3s ease;
+        }
+        .roadmap-step.active {
+            background: #38bdf8;
+            color: #020617;
+            border-color: #38bdf8;
+            box-shadow: 0 0 15px #38bdf8;
+        }
+        .roadmap-step.completed {
+            background: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+        .roadmap-line {
+            width: 15px;
+            height: 2px;
+            background: rgba(56, 189, 248, 0.2);
+        }
+        .roadmap-line.completed { background: #10b981; }
+
+        /* 하트 UI */
+        .heart-container {
+            display: flex;
+            gap: 5px;
+            font-size: 24px;
+            color: #ef4444;
+            filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.5));
         }
 
-        .inventory-slot:hover {
-            border-color: #38bdf8;
-            background: rgba(56, 189, 248, 0.1);
+        .inventory-slot {
+            width: 65px;
+            height: 65px;
+            border: 2px dashed rgba(56, 189, 248, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            cursor: grab;
+            font-size: 10px;
+            color: #38bdf8;
         }
 
         .fire-btn {
             background: linear-gradient(45deg, #ef4444, #f87171);
-            box-shadow: 0 0 15px rgba(239, 68, 68, 0.6);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
             transition: all 0.2s;
         }
-        .fire-btn:active {
-            transform: scale(0.95);
-        }
+        .fire-btn:active { transform: scale(0.95); }
 
-        /* 드래그 중인 임시 요소 (태블릿용) */
         #touch-ghost {
-            position: fixed;
-            pointer-events: none;
-            z-index: 100;
-            display: none;
-            width: 40px;
-            height: 4px;
-            background: #f1f5f9;
-            box-shadow: 0 0 10px #38bdf8;
+            position: fixed; pointer-events: none; z-index: 100; display: none;
+            width: 40px; height: 4px; background: #f1f5f9; box-shadow: 0 0 15px #38bdf8;
             transform: rotate(45deg);
         }
 
-        #inventory-container::-webkit-scrollbar {
-            width: 4px;
-        }
-        #inventory-container::-webkit-scrollbar-thumb {
-            background: rgba(56, 189, 248, 0.3);
-            border-radius: 10px;
-        }
+        #inventory-container::-webkit-scrollbar { width: 6px; }
+        #inventory-container::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.4); border-radius: 10px; }
     </style>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen">
 
     <div id="touch-ghost"></div>
 
-    <!-- Header UI -->
-    <div class="fixed top-0 left-0 w-full p-4 sm:p-6 flex justify-between items-start z-10 pointer-events-none">
-        <div class="pointer-events-auto">
-            <h1 class="text-3xl sm:text-4xl title-font text-sky-400 mb-1">LASER MAZE 🔬</h1>
-            <p id="level-name" class="text-sky-200/70 font-bold text-sm sm:text-base">Level Loading...</p>
+    <!-- Start/Game Over/Clear Modals -->
+    <div id="game-modal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-6 hidden">
+        <div class="glass max-w-lg w-full p-8 rounded-3xl text-center shadow-2xl">
+            <h2 id="modal-title" class="text-5xl title-font text-sky-400 mb-6">레이저 마스터</h2>
+            <div id="modal-content" class="text-sky-100 mb-8 space-y-4">
+                <!-- Content injected here -->
+            </div>
+            <button id="modal-btn" class="w-full bg-sky-500 hover:bg-sky-400 text-white title-font text-2xl py-4 rounded-2xl transition-all shadow-lg active:scale-95">
+                확인
+            </button>
         </div>
-        
-        <!-- 우측 상단 UI 그룹 -->
-        <div class="flex flex-col items-end gap-3 pointer-events-auto">
-            
-            <!-- 레벨 진행도 UI -->
-            <div class="glass px-3 py-2 rounded-full flex items-center gap-1 sm:gap-2">
-                <span class="text-xs text-sky-300 font-bold mr-1 hidden sm:inline">STAGE</span>
-                <div id="level-progress" class="flex gap-1.5 sm:gap-2">
-                    <!-- JS로 자동 생성됨 -->
+    </div>
+
+    <!-- Header UI -->
+    <div class="fixed top-0 left-0 w-full p-4 lg:p-8 flex flex-col lg:flex-row justify-between items-center gap-4 z-10 pointer-events-none">
+        <div class="pointer-events-auto flex flex-col lg:flex-row items-center gap-6">
+            <div>
+                <h1 class="text-3xl lg:text-4xl title-font text-sky-400 mb-1">LASER MAZE 🔬</h1>
+                <div class="flex items-center gap-4">
+                    <p id="level-name-display" class="text-sky-200/70 font-bold text-xs">Level 1</p>
+                    <div id="heart-ui" class="heart-container">
+                        <span>❤️</span><span>❤️</span><span>❤️</span>
+                    </div>
                 </div>
             </div>
-
-            <div class="flex gap-2 sm:gap-3">
-                <button id="reset-btn" class="glass px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm hover:bg-sky-900 transition font-bold">초기화</button>
-                <div class="glass px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm">
-                    상태: <span id="status" class="text-blue-400 font-bold">배치 중...</span>
-                </div>
+            <div class="roadmap-container glass p-2 px-4 rounded-full" id="visual-roadmap">
+                <div class="roadmap-step" id="step-1">1</div>
+                <div class="roadmap-line" id="line-1"></div>
+                <div class="roadmap-step" id="step-2">2</div>
+                <div class="roadmap-line" id="line-2"></div>
+                <div class="roadmap-step" id="step-3">3</div>
+                <div class="roadmap-line" id="line-3"></div>
+                <div class="roadmap-step" id="step-4">4</div>
+                <div class="roadmap-line" id="line-4"></div>
+                <div class="roadmap-step" id="step-5">5</div>
+                <div class="roadmap-line" id="line-5"></div>
+                <div class="roadmap-step" id="step-6">♾️</div>
+            </div>
+        </div>
+        <div class="flex gap-3 pointer-events-auto">
+            <button id="reset-btn" class="glass px-6 py-2 rounded-full text-sm hover:bg-sky-900 transition">초기화</button>
+            <div class="glass px-6 py-2 rounded-full text-sm">
+                상태: <span id="status" class="text-blue-400 font-bold">배치 중...</span>
             </div>
         </div>
     </div>
 
-    <!-- Main Container -->
-    <div class="flex flex-col lg:flex-row items-center gap-8 translate-y-8 sm:translate-y-4">
-        
-        <!-- Game Canvas Container -->
+    <!-- Main Game Section -->
+    <div class="flex flex-col lg:flex-row items-center gap-8 translate-y-12 lg:translate-y-4">
         <div class="relative">
             <canvas id="gameCanvas" class="rounded-xl border-2 border-sky-900/50"></canvas>
-            
-            <div class="absolute -bottom-20 sm:-bottom-24 left-0 w-full flex flex-col items-center gap-2 sm:gap-4">
-                <button id="fire-btn" class="fire-btn text-white text-2xl sm:text-3xl title-font px-12 py-3 sm:px-16 sm:py-4 rounded-full">
+            <div class="absolute -bottom-24 left-0 w-full flex flex-col items-center gap-4">
+                <button id="fire-btn" class="fire-btn text-white text-3xl title-font px-20 py-4 rounded-full">
                     LASER FIRE!
                 </button>
-                <div id="hint" class="text-sky-300/50 text-xs sm:text-sm font-bold">
-                    👆 거울을 끌어서 배치하고, 클릭해서 회전시키세요!
+                <div id="hint" class="text-sky-300/40 text-xs lg:text-sm text-center">
+                    거울을 끌어 배치하고, 터치해서 회전시키세요!
                 </div>
             </div>
         </div>
 
         <!-- Inventory Sidebar -->
-        <div class="glass p-4 sm:p-5 rounded-2xl flex flex-col gap-4 items-center w-40 sm:w-48">
-            <h2 class="title-font text-lg sm:text-xl text-sky-300 border-b border-sky-900 pb-2 w-full text-center">예비 거울</h2>
-            <div id="inventory-container" class="grid grid-cols-2 gap-2 sm:gap-3 max-h-[250px] lg:max-h-[400px] overflow-y-auto p-1">
-                <!-- Slots will be generated by JS -->
+        <div class="glass p-5 rounded-2xl flex flex-col gap-4 items-center w-52">
+            <h2 class="title-font text-xl text-sky-300 border-b border-sky-900 pb-2 w-full text-center">아이템함</h2>
+            <div id="inventory-container" class="grid grid-cols-2 gap-3 max-h-[300px] lg:max-h-[480px] overflow-y-auto p-1 w-full">
+                <!-- Slots generated here -->
             </div>
-            <p id="mirror-count-label" class="text-[10px] sm:text-xs text-sky-500 text-center font-bold"></p>
+            <p id="mirror-count-label" class="text-[10px] text-sky-400 text-center font-bold tracking-widest"></p>
         </div>
-    </div>
-
-    <!-- Success Modal -->
-    <div id="clear-modal" class="fixed inset-0 bg-black/90 hidden flex flex-col items-center justify-center z-50">
-        <div class="text-center animate-bounce mb-2">
-            <span class="text-6xl">🌟</span>
-        </div>
-        <h2 id="modal-title" class="text-5xl sm:text-6xl title-font text-yellow-400 mb-4 text-center">MISSION CLEAR!</h2>
-        <p id="modal-msg" class="text-lg sm:text-xl text-sky-200 mb-8 font-bold text-center">정말 대단한 실력이군요!</p>
-        <button id="next-level-btn" class="bg-sky-600 hover:bg-sky-500 text-white text-xl sm:text-2xl title-font px-10 py-3 sm:px-12 sm:py-4 rounded-full transition-all transform hover:scale-110 shadow-[0_0_20px_rgba(2,132,199,0.5)]">
-            다음 단계로
-        </button>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const statusEl = document.getElementById('status');
-        const levelNameEl = document.getElementById('level-name');
-        const levelProgressEl = document.getElementById('level-progress');
-        const clearModal = document.getElementById('clear-modal');
+        const levelNameDisplay = document.getElementById('level-name-display');
+        const heartUI = document.getElementById('heart-ui');
+        const gameModal = document.getElementById('game-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalContent = document.getElementById('modal-content');
+        const modalBtn = document.getElementById('modal-btn');
         const fireBtn = document.getElementById('fire-btn');
         const inventoryContainer = document.getElementById('inventory-container');
         const mirrorCountLabel = document.getElementById('mirror-count-label');
@@ -165,152 +199,139 @@
 
         let cellSize = 0;
         let currentLevel = 0;
+        let completedLevels = new Set();
         let mirrors = [];
         let walls = [];
         let emitter = { x: 0, y: 0, dir: 0 };
         let exit = { x: 0, y: 0 };
         let laserPath = [];
         let isLaserActive = false;
+        let lives = 3;
         
-        let inventory = []; 
+        let inventoryItems = []; 
         let draggingFromInventory = null;
         let draggingFromBoard = null;
 
         const LEVELS = [
-            {
-                name: "Level 1: 반사의 기초",
-                mirrorCount: 4,
-                grid: [
-                    ['1','1','1','1','1','1','1','1'],
-                    ['E','0','0','0','0','0','0','1'],
-                    ['1','1','1','1','0','1','1','1'],
-                    ['1','0','0','0','0','1','1','1'],
-                    ['1','0','1','1','1','1','1','1'],
-                    ['1','0','0','0','0','0','X','1'],
-                    ['1','1','1','1','1','1','1','1']
-                ]
-            },
-            {
-                name: "Level 2: 꼬여가는 길",
-                mirrorCount: 8,
-                grid: [
-                    ['1','1','1','1','1','1','1','1','1','1'],
-                    ['E','0','0','0','1','1','1','1','1','1'],
-                    ['1','1','1','0','1','1','1','1','1','1'],
-                    ['1','1','1','0','0','0','0','1','1','1'],
-                    ['1','1','1','1','1','1','0','1','1','1'],
-                    ['1','1','1','1','0','0','0','0','0','1'],
-                    ['1','1','1','1','0','1','1','1','0','1'],
-                    ['1','1','1','1','0','0','0','0','0','X'],
-                    ['1','1','1','1','1','1','1','1','1','1']
-                ]
-            },
-            {
-                name: "Level 3: 지그재그 실험실",
-                mirrorCount: 12,
-                grid: [
-                    ['1','1','1','1','1','1','1','1','1','1'],
-                    ['E','0','0','1','0','0','0','0','0','1'],
-                    ['1','1','0','1','0','1','1','1','0','1'],
-                    ['1','0','0','1','0','1','0','0','0','1'],
-                    ['1','0','1','1','0','1','0','1','1','1'],
-                    ['1','0','0','0','0','1','0','0','0','1'],
-                    ['1','1','1','1','1','1','1','1','0','1'],
-                    ['1','0','0','0','0','0','0','0','0','X'],
-                    ['1','1','1','1','1','1','1','1','1','1']
-                ]
-            },
-            {
-                name: "Level 4: 빛의 장막",
-                mirrorCount: 16,
-                grid: [
-                    ['1','1','1','1','1','1','1','1','1','1','1','1'],
-                    ['E','0','0','0','0','1','0','0','0','0','0','1'],
-                    ['1','1','1','1','0','1','0','1','1','1','0','1'],
-                    ['1','0','0','0','0','1','0','1','0','0','0','1'],
-                    ['1','0','1','1','1','1','0','1','0','1','1','1'],
-                    ['1','0','0','0','0','0','0','1','0','0','0','1'],
-                    ['1','1','1','1','1','1','1','1','1','1','0','1'],
-                    ['1','0','0','0','0','0','0','0','0','0','0','1'],
-                    ['1','0','1','1','1','1','1','1','1','1','1','1'],
-                    ['1','0','0','0','0','0','0','0','0','0','X','1'],
-                    ['1','1','1','1','1','1','1','1','1','1','1','1']
-                ]
-            },
-            {
-                name: "Level 5: 광학의 끝 (Master)",
-                mirrorCount: 20,
-                grid: [
-                    ['1','1','1','1','1','1','1','1','1','1','1','1','1'],
-                    ['E','0','1','0','0','0','1','0','0','0','1','0','1'],
-                    ['1','0','1','0','1','0','1','0','1','0','1','0','1'],
-                    ['1','0','0','0','1','0','0','0','1','0','0','0','1'],
-                    ['1','1','1','1','1','1','1','1','1','1','1','0','1'],
-                    ['1','0','0','0','0','0','0','0','0','0','0','0','1'],
-                    ['1','0','1','1','1','1','1','1','1','1','1','1','1'],
-                    ['1','0','0','0','0','0','1','0','0','0','0','0','1'],
-                    ['1','1','1','1','1','0','1','0','1','1','1','0','1'],
-                    ['1','0','0','0','1','0','0','0','1','0','0','0','1'],
-                    ['1','0','1','0','1','1','1','1','1','0','1','1','1'],
-                    ['1','0','0','0','0','0','0','0','0','0','0','X','1'],
-                    ['1','1','1','1','1','1','1','1','1','1','1','1','1']
-                ]
-            }
+            { name: "Level 1: 반사의 기초", mirrorCount: 4, wallCount: 0, grid: [
+                ['1','1','1','1','1','1','1','1'],
+                ['E','0','0','0','0','0','0','1'],
+                ['1','1','1','1','0','1','1','1'],
+                ['1','0','0','0','0','1','1','1'],
+                ['1','0','1','1','1','1','1','1'],
+                ['1','0','0','0','0','0','X','1'],
+                ['1','1','1','1','1','1','1','1']
+            ]},
+            { name: "Level 2: 꼬여가는 길", mirrorCount: 8, wallCount: 0, grid: [
+                ['1','1','1','1','1','1','1','1','1','1'],
+                ['E','0','0','0','1','1','1','1','1','1'],
+                ['1','1','1','0','1','1','1','1','1','1'],
+                ['1','1','1','0','0','0','0','1','1','1'],
+                ['1','1','1','1','1','1','0','1','1','1'],
+                ['1','1','1','1','0','0','0','0','0','1'],
+                ['1','1','1','1','0','1','1','1','0','1'],
+                ['1','1','1','1','0','0','0','0','0','X'],
+                ['1','1','1','1','1','1','1','1','1','1']
+            ]},
+            { name: "Level 3: 지그재그 실험실", mirrorCount: 12, wallCount: 0, grid: [
+                ['1','1','1','1','1','1','1','1','1','1'],
+                ['E','0','0','1','0','0','0','0','0','1'],
+                ['1','1','0','1','0','1','1','1','0','1'],
+                ['1','0','0','1','0','1','0','0','0','1'],
+                ['1','0','1','1','0','1','0','1','1','1'],
+                ['1','0','0','0','0','1','0','0','0','1'],
+                ['1','1','1','1','1','1','1','1','0','1'],
+                ['1','0','0','0','0','0','0','0','0','X'],
+                ['1','1','1','1','1','1','1','1','1','1']
+            ]},
+            { name: "Level 4: 빛의 장막", mirrorCount: 16, wallCount: 0, grid: [
+                ['1','1','1','1','1','1','1','1','1','1','1','1'],
+                ['E','0','0','0','0','1','0','0','0','0','0','1'],
+                ['1','1','1','1','0','1','0','1','1','1','0','1'],
+                ['1','0','0','0','0','1','0','1','0','0','0','1'],
+                ['1','0','1','1','1','1','0','1','0','1','1','1'],
+                ['1','0','0','0','0','0','0','1','0','0','0','1'],
+                ['1','1','1','1','1','1','1','1','1','1','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','1','1','1','1','1','1','1','1','1','1'],
+                ['1','0','0','0','0','0','0','0','0','0','X','1'],
+                ['1','1','1','1','1','1','1','1','1','1','1','1']
+            ]},
+            { name: "Level 5: 광학의 끝 (Master)", mirrorCount: 35, wallCount: 0, grid: [
+                ['1','1','1','1','1','1','1','1','1','1','1','1','1'],
+                ['E','0','1','0','0','0','1','0','0','0','1','0','1'],
+                ['1','0','1','0','1','0','1','0','1','0','1','0','1'],
+                ['1','0','0','0','1','0','0','0','1','0','0','0','1'],
+                ['1','1','1','1','1','1','1','1','1','1','1','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','1','1','1','1','1','1','1','1','1','1','1'],
+                ['1','0','0','0','0','0','1','0','0','0','0','0','1'],
+                ['1','1','1','1','1','0','1','0','1','1','1','0','1'],
+                ['1','0','0','0','1','0','0','0','1','0','0','0','1'],
+                ['1','0','1','0','1','1','1','1','1','0','1','1','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','X','1'],
+                ['1','1','1','1','1','1','1','1','1','1','1','1','1']
+            ]},
+            { name: "Level 6: 자유 창작 모드", mirrorCount: 30, wallCount: 30, grid: [
+                ['1','1','1','1','1','1','1','1','1','1','1','1'],
+                ['1','E','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','0','1'],
+                ['1','0','0','0','0','0','0','0','0','0','X','1'],
+                ['1','1','1','1','1','1','1','1','1','1','1','1']
+            ]}
         ];
 
-        function renderLevelProgress() {
-            levelProgressEl.innerHTML = '';
-            for (let i = 0; i < LEVELS.length; i++) {
-                const badge = document.createElement('div');
-                badge.className = 'w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all duration-300 ';
-                
-                if (i < currentLevel) {
-                    // 클리어한 스테이지
-                    badge.classList.add('bg-green-500', 'text-white', 'shadow-[0_0_10px_rgba(34,197,94,0.8)]');
-                    badge.innerHTML = '✓';
-                } else if (i === currentLevel) {
-                    // 현재 플레이 중인 스테이지
-                    badge.classList.add('bg-sky-500', 'text-white', 'shadow-[0_0_15px_rgba(56,189,248,0.9)]', 'animate-pulse');
-                    badge.innerText = i + 1;
-                } else {
-                    // 아직 도달하지 못한 스테이지
-                    badge.classList.add('bg-slate-700', 'text-slate-400', 'opacity-70');
-                    badge.innerText = i + 1;
-                }
-                
-                levelProgressEl.appendChild(badge);
+        function showModal(title, content, btnText, callback) {
+            modalTitle.innerText = title;
+            modalContent.innerHTML = content;
+            modalBtn.innerText = btnText;
+            gameModal.classList.remove('hidden');
+            modalBtn.onclick = () => {
+                gameModal.classList.add('hidden');
+                if(callback) callback();
+            };
+        }
+
+        function updateLivesUI() {
+            heartUI.innerHTML = '';
+            for(let i=0; i<3; i++) {
+                const span = document.createElement('span');
+                span.innerText = i < lives ? '❤️' : '🖤';
+                heartUI.appendChild(span);
             }
         }
 
         function initLevel(idx) {
             currentLevel = idx % LEVELS.length;
             const level = LEVELS[currentLevel];
-            levelNameEl.innerText = level.name;
-            
-            // 레벨 진행도 업데이트
-            renderLevelProgress();
+            levelNameDisplay.innerText = level.name;
             
             const rows = level.grid.length;
             const cols = level.grid[0].length;
-            
-            // 반응형 크기 조절
             const isMobile = window.innerWidth < 1024;
-            const maxW = window.innerWidth * (isMobile ? 0.85 : 0.65);
-            const maxH = window.innerHeight * (isMobile ? 0.45 : 0.60);
+            const maxW = window.innerWidth * (isMobile ? 0.85 : 0.6);
+            const maxH = window.innerHeight * (isMobile ? 0.4 : 0.6);
             cellSize = Math.min(maxW / cols, maxH / rows);
             canvas.width = cols * cellSize;
             canvas.height = rows * cellSize;
 
-            walls = [];
-            mirrors = [];
-            laserPath = [];
-            isLaserActive = false;
-            clearModal.classList.add('hidden');
+            walls = []; mirrors = []; laserPath = []; isLaserActive = false;
             statusEl.innerText = "배치 중...";
             
-            inventory = Array(level.mirrorCount).fill(true);
+            // 인벤토리 설정: 거울과 벽(6단계 전용)
+            inventoryItems = [];
+            for(let i=0; i<level.mirrorCount; i++) inventoryItems.push({type: 'mirror', active: true});
+            for(let i=0; i<level.wallCount; i++) inventoryItems.push({type: 'wall', active: true});
+
             createInventorySlots();
             updateMirrorCountLabel();
+            updateRoadmapUI();
 
             for(let y=0; y<rows; y++) {
                 for(let x=0; x<cols; x++) {
@@ -328,331 +349,271 @@
             }
         }
 
+        function updateRoadmapUI() {
+            for(let i=1; i<=6; i++) {
+                const step = document.getElementById(`step-${i}`);
+                const line = document.getElementById(`line-${i}`);
+                if(!step) continue;
+                step.className = "roadmap-step";
+                if (i-1 === currentLevel) step.classList.add("active");
+                else if (completedLevels.has(i-1)) step.classList.add("completed");
+                if (line) {
+                    line.className = "roadmap-line";
+                    if (completedLevels.has(i-1)) line.classList.add("completed");
+                }
+            }
+        }
+
         function createInventorySlots() {
             inventoryContainer.innerHTML = '';
-            inventory.forEach((hasItem, i) => {
+            inventoryItems.forEach((item, i) => {
                 const slot = document.createElement('div');
-                slot.className = 'inventory-slot w-[60px] h-[60px] sm:w-[70px] sm:h-[70px]';
+                slot.className = 'inventory-slot';
                 slot.dataset.index = i;
                 slot.draggable = true;
-                if (hasItem) addMirrorIcon(slot);
-
-                // 마우스 드래그
-                slot.addEventListener('dragstart', (e) => {
-                    if (inventory[i]) {
-                        draggingFromInventory = i;
-                        slot.classList.add('dragging');
-                    } else e.preventDefault();
-                });
-                slot.addEventListener('dragend', () => {
-                    slot.classList.remove('dragging');
-                    draggingFromInventory = null;
-                });
-
-                // 터치 드래그 (태블릿용)
-                slot.addEventListener('touchstart', (e) => {
-                    if (inventory[i]) {
-                        draggingFromInventory = i;
-                        const touch = e.touches[0];
-                        showTouchGhost(touch.clientX, touch.clientY);
+                
+                if (item.active) {
+                    if(item.type === 'mirror') {
+                        const m = document.createElement('div');
+                        m.style.width = '70%'; m.style.height = '4px'; m.style.background = '#f8fafc';
+                        m.style.boxShadow = '0 0 10px #38bdf8'; m.style.transform = 'rotate(45deg)';
+                        slot.appendChild(m);
+                    } else {
+                        const w = document.createElement('div');
+                        w.style.width = '60%'; w.style.height = '60%'; w.style.background = '#475569';
+                        w.style.border = '2px solid #0ea5e9';
+                        slot.appendChild(w);
                     }
-                }, {passive: true});
+                }
 
+                slot.addEventListener('dragstart', (e) => {
+                    if (inventoryItems[i].active) { draggingFromInventory = i; slot.style.opacity = '0.5'; }
+                    else e.preventDefault();
+                });
+                slot.addEventListener('dragend', () => { slot.style.opacity = '1'; draggingFromInventory = null; });
+                slot.addEventListener('touchstart', (e) => {
+                    if (inventoryItems[i].active) { draggingFromInventory = i; showTouchGhost(e.touches[0].clientX, e.touches[0].clientY); }
+                }, {passive: true});
                 inventoryContainer.appendChild(slot);
             });
         }
 
-        function addMirrorIcon(el) {
-            const mirrorIcon = document.createElement('div');
-            mirrorIcon.style.width = '60%';
-            mirrorIcon.style.height = '4px';
-            mirrorIcon.style.background = '#f1f5f9';
-            mirrorIcon.style.boxShadow = '0 0 10px #38bdf8';
-            mirrorIcon.style.transform = 'rotate(45deg)';
-            el.appendChild(mirrorIcon);
-        }
-
-        function updateInventoryUI() {
-            const slots = document.querySelectorAll('.inventory-slot');
-            slots.forEach((slot, i) => {
-                slot.innerHTML = '';
-                if (inventory[i]) addMirrorIcon(slot);
-            });
-            updateMirrorCountLabel();
-        }
-
         function updateMirrorCountLabel() {
-            const available = inventory.filter(v => v).length;
-            mirrorCountLabel.innerText = `사용 가능: ${available} / ${inventory.length}`;
+            const mirrorsLeft = inventoryItems.filter(i => i.type === 'mirror' && i.active).length;
+            const wallsLeft = inventoryItems.filter(i => i.type === 'wall' && i.active).length;
+            mirrorCountLabel.innerHTML = `거울: ${mirrorsLeft}${currentLevel === 5 ? ' | 벽: ' + wallsLeft : ''}`;
         }
 
         function calculateLaser() {
             const dirVecs = [[1,0], [0,1], [-1,0], [0,-1]];
             let curX = (emitter.x + 0.5) * cellSize;
             let curY = (emitter.y + 0.5) * cellSize;
-            let dx = dirVecs[emitter.dir][0];
-            let dy = dirVecs[emitter.dir][1];
-
+            let dx = dirVecs[emitter.dir][0]; let dy = dirVecs[emitter.dir][1];
             laserPath = [{x: curX, y: curY}];
             let solved = false;
             
-            for(let i=0; i<1000; i++) { 
+            for(let i=0; i<1500; i++) { 
                 let stepSize = 4;
-                let nextX = curX + dx * stepSize;
-                let nextY = curY + dy * stepSize;
-
-                const gx = Math.floor(nextX / cellSize);
-                const gy = Math.floor(nextY / cellSize);
+                let nextX = curX + dx * stepSize; let nextY = curY + dy * stepSize;
+                const gx = Math.floor(nextX / cellSize); const gy = Math.floor(nextY / cellSize);
                 
                 if (gx < 0 || gy < 0 || gx >= canvas.width/cellSize || gy >= canvas.height/cellSize) {
-                    laserPath.push({x: nextX + dx * 200, y: nextY + dy * 200});
-                    break;
+                    laserPath.push({x: nextX + dx * 200, y: nextY + dy * 200}); break;
                 }
-
                 if (walls.some(w => w.x === gx && w.y === gy)) {
                     const hitX = dx > 0 ? gx * cellSize : (dx < 0 ? (gx + 1) * cellSize : nextX);
                     const hitY = dy > 0 ? gy * cellSize : (dy < 0 ? (gy + 1) * cellSize : nextY);
-                    laserPath.push({x: hitX, y: hitY});
-                    break;
+                    laserPath.push({x: hitX, y: hitY}); break;
                 }
-
                 if (exit.x === gx && exit.y === gy) {
-                    laserPath.push({x: (gx + 0.5) * cellSize, y: (gy + 0.5) * cellSize});
-                    solved = true;
-                    break;
+                    laserPath.push({x: (gx + 0.5) * cellSize, y: (gy + 0.5) * cellSize}); solved = true; break;
                 }
-
                 const mirror = mirrors.find(m => m.x === gx && m.y === gy);
                 if (mirror) {
-                    const mx = (mirror.x + 0.5) * cellSize;
-                    const my = (mirror.y + 0.5) * cellSize;
-                    const distToCenter = Math.sqrt((nextX - mx)**2 + (nextY - my)**2);
-                    
-                    if (distToCenter < stepSize * 2) {
+                    const mx = (mirror.x + 0.5) * cellSize; const my = (mirror.y + 0.5) * cellSize;
+                    if (Math.sqrt((nextX - mx)**2 + (nextY - my)**2) < stepSize * 2) {
                         const angleRad = (mirror.angle * Math.PI) / 180;
-                        const nx_m = Math.cos(angleRad + Math.PI/2);
-                        const ny_m = Math.sin(angleRad + Math.PI/2);
+                        const nx_m = Math.cos(angleRad + Math.PI/2); const ny_m = Math.sin(angleRad + Math.PI/2);
                         const dot = dx * nx_m + dy * ny_m;
-                        
                         dx = Math.round((dx - 2 * dot * nx_m) * 100) / 100;
                         dy = Math.round((dy - 2 * dot * ny_m) * 100) / 100;
-                        
-                        laserPath.push({x: mx, y: my});
-                        curX = mx + dx * stepSize;
-                        curY = my + dy * stepSize;
+                        laserPath.push({x: mx, y: my}); curX = mx + dx * stepSize; curY = my + dy * stepSize;
                         continue;
                     }
                 }
-                curX = nextX;
-                curY = nextY;
+                curX = nextX; curY = nextY;
             }
-
+            
             if (solved) {
-                statusEl.innerText = "성공!";
-                statusEl.className = "text-green-400 font-bold";
-                
-                // 모달 텍스트 업데이트
-                const isMasterLevel = currentLevel === LEVELS.length - 1;
-                document.getElementById('modal-title').innerText = isMasterLevel ? "ALL CLEAR!" : `LEVEL ${currentLevel + 1} CLEAR!`;
-                document.getElementById('modal-msg').innerText = isMasterLevel 
-                    ? "최종 단계를 통과했습니다! 당신은 빛의 반사 마스터! 👑" 
-                    : "성공했어요! 과학 선생님도 깜짝 놀랄 실력이네요! 👏";
-                
-                document.getElementById('next-level-btn').innerText = isMasterLevel ? "처음부터 다시하기" : "다음 단계 도전!";
-                
-                setTimeout(() => clearModal.classList.remove('hidden'), 800);
-            } else {
-                statusEl.innerText = "실패";
-                statusEl.className = "text-orange-400 font-bold";
+                statusEl.innerText = "탈출 성공!"; statusEl.className = "text-green-400 font-bold";
+                completedLevels.add(currentLevel);
+                updateRoadmapUI();
+                setTimeout(() => {
+                    const nextMsg = currentLevel === 4 ? "최종 5단계를 통과했습니다! 이제 자유 모드(♾️)를 즐겨보세요!" : "빛의 경로를 설계하는 능력이 대단합니다!";
+                    showModal("MISSION CLEAR!", nextMsg, "다음 단계로", () => initLevel(currentLevel + 1));
+                }, 500);
+            } else { 
+                statusEl.innerText = "실패"; statusEl.className = "text-orange-400 font-bold";
+                lives--;
+                updateLivesUI();
+                if(lives <= 0) {
+                    setTimeout(() => showModal("GAME OVER", "모든 하트를 잃었습니다. 다시 도전해볼까요?", "처음부터 시작", () => {
+                        lives = 3; updateLivesUI(); initLevel(0);
+                    }), 500);
+                }
             }
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 그리드 크기가 0일 때 발생하는 무한 루프 버그 방지
+            if (cellSize > 0) {
+                // Grid
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.05)';
+                ctx.lineWidth = 1;
+                for(let i=0; i<=canvas.width; i+=cellSize) {
+                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+                }
 
-            // Walls
-            ctx.fillStyle = '#0f172a';
-            walls.forEach(w => {
-                ctx.fillRect(w.x * cellSize, w.y * cellSize, cellSize, cellSize);
-                ctx.strokeStyle = '#1e293b';
-                ctx.strokeRect(w.x * cellSize + 2, w.y * cellSize + 2, cellSize - 4, cellSize - 4);
-            });
+                // Walls (Metallic Bright Grey with Neon Blue border)
+                walls.forEach(w => {
+                    const x = w.x * cellSize; const y = w.y * cellSize;
+                    ctx.fillStyle = '#475569'; ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+                    ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 2; ctx.strokeRect(x + 2, y + 2, cellSize - 4, cellSize - 4);
+                });
 
-            // Exit
-            ctx.fillStyle = '#064e3b';
-            ctx.fillRect(exit.x * cellSize, exit.y * cellSize, cellSize, cellSize);
-            ctx.font = `${cellSize*0.6}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('🚪', (exit.x + 0.5) * cellSize, (exit.y + 0.5) * cellSize);
+                // Exit
+                ctx.fillStyle = '#166534'; ctx.fillRect(exit.x * cellSize + 2, exit.y * cellSize + 2, cellSize - 4, cellSize - 4);
+                ctx.font = `${cellSize*0.6}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('🚪', (exit.x + 0.5) * cellSize, (exit.y + 0.5) * cellSize);
 
-            // Emitter
-            ctx.fillStyle = '#ef4444';
-            ctx.beginPath();
-            ctx.arc((emitter.x + 0.5) * cellSize, (emitter.y + 0.5) * cellSize, cellSize/3, 0, Math.PI*2);
-            ctx.fill();
-
-            // Mirrors
-            mirrors.forEach(m => {
+                // Emitter (길쭉한 포신 모양)
                 ctx.save();
-                ctx.translate((m.x + 0.5) * cellSize, (m.y + 0.5) * cellSize);
-                ctx.rotate((m.angle * Math.PI) / 180);
-                ctx.fillStyle = '#475569';
-                ctx.fillRect(-cellSize*0.4, -2, cellSize*0.8, 4);
-                ctx.fillStyle = '#f1f5f9';
-                ctx.fillRect(-cellSize*0.4, -4, cellSize*0.8, 2);
+                ctx.translate((emitter.x + 0.5) * cellSize, (emitter.y + 0.5) * cellSize);
+                const angleMap = [0, Math.PI/2, Math.PI, -Math.PI/2];
+                ctx.rotate(angleMap[emitter.dir]);
+                ctx.fillStyle = '#1e293b'; ctx.fillRect(-cellSize/3, -cellSize/4, cellSize/1.5, cellSize/2);
+                ctx.fillStyle = '#ef4444'; ctx.fillRect(0, -cellSize/8, cellSize/2, cellSize/4); // Barrel
                 ctx.restore();
-            });
 
-            // Laser
-            if (isLaserActive && laserPath.length > 0) {
-                ctx.save();
-                ctx.beginPath();
-                ctx.moveTo(laserPath[0].x, laserPath[0].y);
-                for(let i=1; i<laserPath.length; i++) ctx.lineTo(laserPath[i].x, laserPath[i].y);
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = '#ef4444';
-                ctx.strokeStyle = '#ef4444';
-                ctx.lineWidth = 4;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-                ctx.restore();
+                // Mirrors
+                mirrors.forEach(m => {
+                    ctx.save(); ctx.translate((m.x + 0.5) * cellSize, (m.y + 0.5) * cellSize);
+                    ctx.rotate((m.angle * Math.PI) / 180);
+                    ctx.fillStyle = '#94a3b8'; ctx.fillRect(-cellSize*0.4, -2, cellSize*0.8, 4);
+                    ctx.fillStyle = '#f8fafc'; ctx.fillRect(-cellSize*0.4, -4, cellSize*0.8, 2); 
+                    ctx.restore();
+                });
+
+                // Laser Beam
+                if (isLaserActive && laserPath.length > 0) {
+                    ctx.save(); ctx.beginPath(); ctx.moveTo(laserPath[0].x, laserPath[0].y);
+                    for(let i=1; i<laserPath.length; i++) ctx.lineTo(laserPath[i].x, laserPath[i].y);
+                    ctx.shadowBlur = 15; ctx.shadowColor = '#ef4444'; ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+                    ctx.shadowBlur = 0; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore();
+                }
             }
-
             requestAnimationFrame(draw);
         }
 
-        // --- 터치 지원 로직 (태블릿) ---
+        // Pointer/Touch Logic
         function showTouchGhost(x, y) {
-            touchGhost.style.display = 'block';
-            touchGhost.style.left = (x - 20) + 'px';
-            touchGhost.style.top = (y - 2) + 'px';
+            touchGhost.style.display = 'block'; touchGhost.style.left = (x - 20) + 'px'; touchGhost.style.top = (y - 2) + 'px';
         }
-
         window.addEventListener('touchmove', (e) => {
             if (draggingFromInventory !== null || draggingFromBoard !== null) {
-                const touch = e.touches[0];
-                showTouchGhost(touch.clientX, touch.clientY);
-                e.preventDefault(); // 스크롤 방지
+                showTouchGhost(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); 
             }
         }, {passive: false});
-
         window.addEventListener('touchend', (e) => {
             if (draggingFromInventory !== null || draggingFromBoard !== null) {
-                const touch = e.changedTouches[0];
                 touchGhost.style.display = 'none';
-                handlePlacement(touch.clientX, touch.clientY);
-                draggingFromInventory = null;
-                draggingFromBoard = null;
+                handlePlacement(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+                draggingFromInventory = null; draggingFromBoard = null;
             }
         });
-
-        // --- 마우스 드래그 앤 드롭 ---
         canvas.addEventListener('dragover', (e) => e.preventDefault());
-        canvas.addEventListener('drop', (e) => {
-            e.preventDefault();
-            handlePlacement(e.clientX, e.clientY);
-        });
-
+        canvas.addEventListener('drop', (e) => { e.preventDefault(); handlePlacement(e.clientX, e.clientY); });
         inventoryContainer.addEventListener('dragover', (e) => e.preventDefault());
-        inventoryContainer.addEventListener('drop', (e) => {
-            if (draggingFromBoard !== null) {
-                handleReturnToInventory();
-            }
-        });
+        inventoryContainer.addEventListener('drop', () => { if (draggingFromBoard) handleReturnToInventory(); });
 
-        // 공통 배치 로직
         function handlePlacement(clientX, clientY) {
             const rect = canvas.getBoundingClientRect();
-            const gx = Math.floor((clientX - rect.left) / cellSize);
-            const gy = Math.floor((clientY - rect.top) / cellSize);
-
-            // 캔버스 밖으로 나갔는데 인벤토리 근처라면 회수 처리 (태블릿용)
+            const gx = Math.floor((clientX - rect.left) / cellSize); const gy = Math.floor((clientY - rect.top) / cellSize);
             if (gx < 0 || gy < 0 || gx >= canvas.width/cellSize || gy >= canvas.height/cellSize) {
                 const invRect = inventoryContainer.getBoundingClientRect();
-                if (clientX >= invRect.left && clientX <= invRect.right && 
-                    clientY >= invRect.top && clientY <= invRect.bottom) {
-                    if (draggingFromBoard !== null) handleReturnToInventory();
+                if (clientX >= invRect.left && clientX <= invRect.right && clientY >= invRect.top && clientY <= invRect.bottom) {
+                    if (draggingFromBoard) handleReturnToInventory();
                 }
                 return;
             }
-
-            const isBlocked = walls.some(w => w.x === gx && w.y === gy) || 
-                              (emitter.x === gx && emitter.y === gy) || 
-                              (exit.x === gx && exit.y === gy) ||
-                              mirrors.some(m => m.x === gx && m.y === gy);
-
+            const isBlocked = walls.some(w => w.x === gx && w.y === gy) || (emitter.x === gx && emitter.y === gy) || (exit.x === gx && exit.y === gy) || mirrors.some(m => m.x === gx && m.y === gy);
             if (!isBlocked) {
                 if (draggingFromInventory !== null) {
-                    mirrors.push({x: gx, y: gy, angle: 45});
-                    inventory[draggingFromInventory] = false;
-                    updateInventoryUI();
-                } else if (draggingFromBoard !== null) {
-                    draggingFromBoard.x = gx;
-                    draggingFromBoard.y = gy;
+                    const item = inventoryItems[draggingFromInventory];
+                    if(item.type === 'mirror') mirrors.push({x: gx, y: gy, angle: 45, inventoryIdx: draggingFromInventory});
+                    else walls.push({x: gx, y: gy, isUserWall: true, inventoryIdx: draggingFromInventory});
+                    item.active = false;
+                    createInventorySlots();
+                } else if (draggingFromBoard) {
+                    draggingFromBoard.x = gx; draggingFromBoard.y = gy;
                 }
-                isLaserActive = false;
-                statusEl.innerText = "배치 중...";
+                isLaserActive = false; statusEl.innerText = "배치 중..."; updateMirrorCountLabel();
             }
         }
-
         function handleReturnToInventory() {
-            const emptySlotIdx = inventory.findIndex(val => val === false);
-            if (emptySlotIdx !== -1) {
-                mirrors = mirrors.filter(m => m !== draggingFromBoard);
-                inventory[emptySlotIdx] = true;
-                updateInventoryUI();
-                isLaserActive = false;
-                statusEl.innerText = "배치 중...";
+            if (draggingFromBoard.inventoryIdx !== undefined) {
+                inventoryItems[draggingFromBoard.inventoryIdx].active = true;
+                if(mirrors.includes(draggingFromBoard)) mirrors = mirrors.filter(m => m !== draggingFromBoard);
+                else walls = walls.filter(w => w !== draggingFromBoard);
+                createInventorySlots();
             }
+            isLaserActive = false; statusEl.innerText = "배치 중..."; updateMirrorCountLabel();
         }
-
-        // 보드 내 거울 잡기 및 회전
-        canvas.addEventListener('mousedown', handlePointerDown);
-        canvas.addEventListener('touchstart', (e) => {
-            const touch = e.touches[0];
-            handlePointerDown(touch);
-        }, {passive: true});
-
+        
+        canvas.addEventListener('mousedown', (e) => handlePointerDown(e));
+        canvas.addEventListener('touchstart', (e) => handlePointerDown(e.touches[0]), {passive: true});
         function handlePointerDown(e) {
             const rect = canvas.getBoundingClientRect();
-            const gx = Math.floor((e.clientX - rect.left) / cellSize);
-            const gy = Math.floor((e.clientY - rect.top) / cellSize);
+            const gx = Math.floor((e.clientX - rect.left) / cellSize); const gy = Math.floor((e.clientY - rect.top) / cellSize);
             const mirror = mirrors.find(m => m.x === gx && m.y === gy);
-            if (mirror) {
-                draggingFromBoard = mirror;
-                canvas.setAttribute('draggable', 'true');
-            }
+            const userWall = walls.find(w => w.x === gx && w.y === gy && w.isUserWall);
+            if (mirror) { draggingFromBoard = mirror; canvas.setAttribute('draggable', 'true'); }
+            else if (userWall) { draggingFromBoard = userWall; canvas.setAttribute('draggable', 'true'); }
         }
-
         canvas.addEventListener('mouseup', () => canvas.setAttribute('draggable', 'false'));
-        canvas.addEventListener('touchend', () => canvas.setAttribute('draggable', 'false'));
-
         canvas.addEventListener('click', (e) => {
             const rect = canvas.getBoundingClientRect();
-            const gx = Math.floor((e.clientX - rect.left) / cellSize);
-            const gy = Math.floor((e.clientY - rect.top) / cellSize);
+            const gx = Math.floor((e.clientX - rect.left) / cellSize); const gy = Math.floor((e.clientY - rect.top) / cellSize);
             const mirror = mirrors.find(m => m.x === gx && m.y === gy);
-            
-            // 드래그가 아닌 단순 클릭 시 회전
             if (mirror && draggingFromBoard === mirror) {
-                mirror.angle = (mirror.angle + 45) % 360;
-                isLaserActive = false;
-                statusEl.innerText = "조준 중...";
-                draggingFromBoard = null;
+                // 6단계(index 5)에서는 90도 회전, 그 외엔 45도
+                const step = currentLevel === 5 ? 90 : 45;
+                mirror.angle = (mirror.angle + step) % 360; 
+                isLaserActive = false; statusEl.innerText = "조준 중..."; draggingFromBoard = null;
             }
         });
 
         fireBtn.onclick = () => { isLaserActive = true; calculateLaser(); };
-        document.getElementById('reset-btn').onclick = () => initLevel(currentLevel);
-        document.getElementById('next-level-btn').onclick = () => initLevel(currentLevel + 1);
-
-        window.onload = () => { initLevel(0); draw(); };
+        document.getElementById('reset-btn').onclick = () => { lives = 3; updateLivesUI(); initLevel(currentLevel); };
+        
+        window.onload = () => {
+            updateLivesUI();
+            initLevel(0); // 팝업 뒤에 미리 1단계 맵을 그려서 로딩 에러와 디자인 개선
+            
+            showModal("레이저 마스터 🔬", 
+                `<div class='text-left space-y-3'>
+                    <p>🎯 <b>목적:</b> 레이저를 🚪까지 반사시키세요.</p>
+                    <p>❤️ <b>목숨:</b> 실패할 때마다 하트가 줄어듭니다.</p>
+                    <p>🪞 <b>배치:</b> 우측 아이템함에서 거울을 끌어다 놓으세요.</p>
+                    <p>🔄 <b>회전:</b> 거울을 터치해 각도를 조절하세요.</p>
+                    <p>♾️ <b>6단계:</b> 90도 회전과 벽 배치가 가능해집니다!</p>
+                </div>`, "시작하기");
+            draw();
+        };
         window.onresize = () => initLevel(currentLevel);
     </script>
 </body>
